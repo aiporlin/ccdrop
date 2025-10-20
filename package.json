@@ -1,0 +1,36 @@
+{
+  "name": "ccdrop",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev --turbopack -p 3001",
+    "build": "next build --turbopack",
+    "start": "next start",
+    "lint": "eslint",
+    "deploy:worker": "wrangler deploy",
+    "deploy:login": "wrangler login"
+  },
+  "dependencies": {
+    "@types/crypto-js": "^4.2.2",
+    "@types/simple-peer": "^9.11.8",
+    "crypto-js": "^4.2.0",
+    "next": "15.5.6",
+    "react": "19.1.0",
+    "react-dom": "19.1.0",
+    "simple-peer": "^9.11.1"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20240529.0",
+    "@eslint/eslintrc": "^3",
+    "@tailwindcss/postcss": "^4",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "eslint": "^9",
+    "eslint-config-next": "15.5.6",
+    "ignore-loader": "^0.1.2",
+    "tailwindcss": "^4",
+    "typescript": "^5",
+    "wrangler": "^3.60.3"
+  }
+}
