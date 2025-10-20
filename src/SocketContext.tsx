@@ -86,6 +86,8 @@ const ContextProvider = ({ children }: SocketProviderProps) => {
   const messageHandlersRef = useRef<{ [key: string]: ((data: any) => void)[] }>({});
   // 添加meRef以同步跟踪me状态
   const meRef = useRef<string>('initial-placeholder');
+  // 添加注册状态跟踪
+  const registrationSuccessfulRef = useRef<boolean>(false);
   
   // WebSocket连接函数 - 增强版
   const connectWebSocket = (url: string) => {
@@ -95,15 +97,22 @@ const ContextProvider = ({ children }: SocketProviderProps) => {
       return;
     }
     
-    // 验证URL配置
-    if (!url || url === 'http://localhost:3003' || url === 'ws://localhost:3003') {
-      const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+    // 重置注册状态
+    registrationSuccessfulRef.current = false;
+    
+    // 验证URL配置并提供默认值
+    let finalUrl = url;
+    const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+    
+    // 智能URL处理
+    if (!finalUrl || finalUrl === 'http://localhost:3003' || finalUrl === 'ws://localhost:3003') {
       if (!isLocalhost) {
-        console.warn('⚠️  Using localhost server URL in production environment!');
-        // 只在非开发环境显示警告
-        if (process.env.NODE_ENV === 'production' || window.location.hostname.includes('pages.dev')) {
-          alert('警告: WebSocket服务器地址可能配置不正确。在生产环境中，请确保已设置正确的Cloudflare Worker URL。');
-        }
+        // 生产环境使用固定的Cloudflare Worker URL
+        console.warn('⚠️  No valid WebSocket URL configured, using default Cloudflare Worker URL');
+        finalUrl = 'https://ccdrop-signaling-server.aiporlin.workers.dev';
+      } else {
+        // 本地环境使用localhost
+        finalUrl = 'ws://localhost:3003';
       }
     }
     
@@ -114,10 +123,11 @@ const ContextProvider = ({ children }: SocketProviderProps) => {
         wsRef.current.close();
         console.log('Closed existing WebSocket connection');
       }
+      wsRef.current = null;
     }
 
     // 创建新的WebSocket连接 - 正确处理URL转换
-    let wsUrl = url;
+    let wsUrl = finalUrl;
     if (wsUrl.startsWith('http://')) {
       wsUrl = wsUrl.replace('http://', 'ws://');
     } else if (wsUrl.startsWith('https://')) {
@@ -130,14 +140,28 @@ const ContextProvider = ({ children }: SocketProviderProps) => {
     
     try {
       wsRef.current = new window.WebSocket(wsUrl);
+      
+      // 设置连接超时
+      const connectionTimeout = setTimeout(() => {
+        if (wsRef.current && wsRef.current.readyState === WebSocket.CONNECTING) {
+          console.error('Connection timeout after 10 seconds');
+          wsRef.current.close();
+          // 只在本地环境显示alert
+          if (isLocalhost) {
+            alert('WebSocket连接超时，请检查服务器是否可访问。');
+          }
+        }
+      }, 10000);
 
       // 连接打开
       wsRef.current.onopen = () => {
+        clearTimeout(connectionTimeout);
         console.log('✅ WebSocket connected successfully');
         // 连接成功后立即注册短ID
         if (me !== 'initial-placeholder' && me) {
+          console.log('Connection established, registering short ID:', me);
+          // 使用sendMessage发送注册消息
           sendMessage('registerShortId', { shortId: me });
-          console.log('Registered short ID:', me);
         }
       };
 
@@ -150,47 +174,47 @@ const ContextProvider = ({ children }: SocketProviderProps) => {
             messageHandlersRef.current[data.type].forEach(handler => handler(data));
           }
         } catch (error) {
-          console.error('Error parsing WebSocket message:', error);
+          console.error('Error parsing WebSocket message:', error, 'Raw message:', event.data);
         }
       };
 
       // 连接错误 - 增强版错误处理
       wsRef.current.onerror = (error) => {
+        clearTimeout(connectionTimeout);
         console.error('❌ WebSocket connection error:', error);
         
         // 根据不同环境显示不同的错误消息
-        const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-        let errorMessage = '';
-        
         if (isLocalhost) {
-          errorMessage = '无法连接到信令服务器。请确保本地服务器(node server.js)正在运行。';
-        } else {
-          errorMessage = '无法连接到信令服务器。请检查NEXT_PUBLIC_SOCKET_SERVER_URL环境变量是否正确设置为您的Cloudflare Worker地址。';
-          console.error('请确认您的Cloudflare Worker已部署并可访问。正确格式应为: https://your-worker.your-account.workers.dev');
+          alert('无法连接到信令服务器。请确保本地服务器(node server.js)正在运行。');
         }
-        
-        alert(errorMessage);
       };
 
       // 连接关闭 - 增强版重连逻辑
       wsRef.current.onclose = (event) => {
+        clearTimeout(connectionTimeout);
         console.log('WebSocket disconnected. Code:', event.code, 'Reason:', event.reason);
+        
+        // 重置注册状态
+        registrationSuccessfulRef.current = false;
         
         // 检查关闭原因
         if (event.code === 1006) { // 异常关闭
           console.error('⚠️  WebSocket connection abnormally closed. This might indicate server is not reachable.');
         }
         
-        // 尝试重连，但增加重连间隔
+        // 尝试重连，但使用指数退避
+        const retryDelay = Math.min(10000, Math.random() * 5000 + 3000); // 3-8秒随机延迟
         setTimeout(() => {
           console.log('Attempting to reconnect...');
-          connectWebSocket(url);
-        }, 3000);
+          connectWebSocket(finalUrl);
+        }, retryDelay);
       };
     } catch (error) {
       console.error('Failed to create WebSocket instance:', error);
       console.error('请检查WebSocket URL格式是否正确:', wsUrl);
-      alert('无法创建WebSocket连接。请检查服务器URL配置是否正确。');
+      if (isLocalhost) {
+        alert('无法创建WebSocket连接。请检查服务器URL配置是否正确。');
+      }
     }
   };
 
@@ -264,10 +288,67 @@ const ContextProvider = ({ children }: SocketProviderProps) => {
   // 初始设置一个临时值，稍后会更新
   const [me, setMe] = useState('initial-placeholder');
   
+  // 添加全局注册尝试计数器
+  const registrationAttemptsRef = useRef(0);
+  const MAX_REGISTRATION_ATTEMPTS = 5;
+  
+  // 统一的注册函数
+  const attemptRegistration = () => {
+    // 检查是否已成功注册
+    if (registrationSuccessfulRef.current) {
+      console.log('Already registered successfully');
+      return;
+    }
+    
+    // 检查是否达到最大尝试次数
+    if (registrationAttemptsRef.current >= MAX_REGISTRATION_ATTEMPTS) {
+      console.error('Maximum registration attempts reached');
+      // 避免过多的alert干扰
+      const isLocalhost = typeof window !== 'undefined' && 
+                        (window.location.hostname === 'localhost' || 
+                         window.location.hostname === '127.0.0.1');
+      if (isLocalhost) {
+        alert('Failed to register with signaling server. Please refresh the page and try again.');
+      }
+      return;
+    }
+    
+    const currentShortId = meRef.current;
+    if (!currentShortId || currentShortId === 'initial-placeholder') {
+      console.error('Cannot register invalid short ID:', currentShortId);
+      return;
+    }
+    
+    registrationAttemptsRef.current++;
+    console.log(`Registration attempt #${registrationAttemptsRef.current} for ID: ${currentShortId}`);
+    
+    // 直接使用sendMessage函数发送注册消息
+    sendMessage('registerShortId', { shortId: currentShortId });
+    
+    // 设置一个超时，检查是否收到注册成功响应
+    setTimeout(() => {
+      if (!registrationSuccessfulRef.current) {
+        console.log('No registration success response within timeout, scheduling retry...');
+        // 使用指数退避延迟
+        const retryDelay = Math.min(8000, registrationAttemptsRef.current * 2000);
+        setTimeout(attemptRegistration, retryDelay);
+      }
+    }, 3000);
+  };
+  
   // 同步me状态到ref，确保在任何时候都能访问到最新值
   useEffect(() => {
     meRef.current = me;
     console.log('me state updated:', me);
+    
+    // 当me状态更新且不是初始值时，尝试注册
+    if (me !== 'initial-placeholder') {
+      // 检查WebSocket连接状态
+      if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+        console.log('me state changed, attempting registration for:', me);
+        attemptRegistration();
+      }
+    }
   }, [me]);
   const [call, setCall] = useState<CallData>({});
   const [callAccepted, setCallAccepted] = useState(false);
@@ -291,15 +372,6 @@ const ContextProvider = ({ children }: SocketProviderProps) => {
   };
 
   useEffect(() => {
-    // Placeholder for camera access, can be removed if only file sharing is needed
-    // navigator.mediaDevices.getUserMedia({ video: true, audio: true })
-    //   .then((currentStream) => {
-    //     setStream(currentStream);
-    //     if (myVideo.current) {
-    //       myVideo.current.srcObject = currentStream;
-    //     }
-    //   });
-
     // 使用自定义的短ID替代socket.id
     const shortId = generateShortId();
     console.log('Generated short ID:', shortId);
@@ -309,25 +381,39 @@ const ContextProvider = ({ children }: SocketProviderProps) => {
     meRef.current = shortId;
     console.log('Set me state and ref to:', shortId);
     
-    // 向服务器注册短ID
-    const registerShortId = () => {
-      console.log('Preparing to register short ID:', shortId);
-      sendMessage('registerShortId', { shortId });
-      console.log('Registered short ID:', shortId);
-    };
-
+    // 重置注册状态
+    registrationSuccessfulRef.current = false;
+    registrationAttemptsRef.current = 0;
+    
     // 如果WebSocket已连接，立即注册；否则等待连接
     if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-      registerShortId();
+      console.log('WebSocket already connected, starting registration');
+      attemptRegistration();
     } else {
       // 等待连接后再注册
       const checkConnection = setInterval(() => {
         if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-          registerShortId();
           clearInterval(checkConnection);
+          console.log('Connection established during check, starting registration');
+          attemptRegistration();
         }
       }, 100);
+      
+      // 5秒后如果还没连接，清除定时器
+      const timeoutId = setTimeout(() => {
+        clearInterval(checkConnection);
+        if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
+          console.warn('WebSocket connection taking too long');
+        }
+      }, 5000);
+      
+      // 清理定时器
+      return () => {
+        clearInterval(checkConnection);
+        clearTimeout(timeoutId);
+      };
     }
+  }, []);
     
     // 仍然监听服务器的id，但不直接使用它
     const unsubscribeMe = onMessage('me', (data: { id: string }) => {
@@ -335,21 +421,53 @@ const ContextProvider = ({ children }: SocketProviderProps) => {
       console.log('Server socket ID:', data.id);
     });
 
+    // 新增：监听注册成功消息
+    const unsubscribeRegisterSuccess = onMessage('registerSuccess', (data: { shortId: string }) => {
+      console.log('✅ Registration successful for ID:', data.shortId);
+      registrationSuccessfulRef.current = true;
+      registrationAttemptsRef.current = 0; // 重置尝试次数
+      
+      // 验证注册的ID是否与我们生成的ID一致
+      const currentId = meRef.current;
+      if (data.shortId === currentId) {
+        console.log('✅ Registered ID matches generated ID');
+      } else {
+        console.warn(`⚠️  Registered ID (${data.shortId}) does not match current ID (${currentId})`);
+      }
+    });
+
+    // 新增：监听呼叫发送状态
+    const unsubscribeCallSent = onMessage('callSent', (data: { to: string, status: string }) => {
+      console.log(`Call request status to ${data.to}: ${data.status}`);
+    });
+
     // 监听呼叫消息
     const unsubscribeCallUser = onMessage('calluser', (data: { from: string, name: string, signal: SignalData }) => {
+      console.log('📲 Received call from:', data.from);
       setCall({ isReceivingCall: true, from: data.from, name: data.name, signal: data.signal });
     });
 
     // 监听通话结束消息
     const unsubscribeCallEnded = onMessage('callended', () => {
+      console.log('📞 Call ended');
       leaveCall();
     });
 
-    // 组件卸载时取消所有监听
+    // 组件卸载时取消所有监听和清理资源
     return () => {
       unsubscribeMe();
+      unsubscribeRegisterSuccess();
+      unsubscribeCallSent();
       unsubscribeCallUser();
       unsubscribeCallEnded();
+      registrationSuccessfulRef.current = false;
+      registrationAttemptsRef.current = 0;
+      
+      // 关闭WebSocket连接
+      if (wsRef.current) {
+        wsRef.current.close();
+        wsRef.current = null;
+      }
     };
   }, []);
 
