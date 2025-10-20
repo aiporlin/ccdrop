@@ -2,10 +2,15 @@
 
 import React, { useContext, useState } from 'react';
 import { SocketContext } from '../SocketContext';
-import { useI18n } from '@/i18n/I18nProvider';
+import { useI18n } from '../i18n/I18nProvider';
 
 const ConnectionManager = () => {
-  const { me, call, callAccepted, callEnded, name, setName, leaveCall, callUser, answerCall } = useContext(SocketContext);
+  const socketContext = useContext(SocketContext);
+  
+  // 添加调试日志，确认上下文是否正确获取
+  console.log('ConnectionManager - SocketContext:', socketContext);
+  
+  const { me, call, callAccepted, callEnded, name, setName, leaveCall, callUser, answerCall } = socketContext;
   const [idToCall, setIdToCall] = useState('');
   const { t } = useI18n();
 
@@ -33,7 +38,17 @@ const ConnectionManager = () => {
             {t('hangUp')}
           </button>
         ) : (
-          <button onClick={() => callUser(idToCall)} className="bg-green-500 text-white px-4 py-2 rounded">
+          <button 
+            onClick={() => {
+              console.log('Call button clicked with id:', idToCall);
+              if (typeof callUser === 'function') {
+                callUser(idToCall);
+              } else {
+                console.error('callUser is not a function:', callUser);
+              }
+            }} 
+            className="bg-green-500 text-white px-4 py-2 rounded"
+          >
             {t('call')}
           </button>
         )}
@@ -41,7 +56,17 @@ const ConnectionManager = () => {
       {call.isReceivingCall && !callAccepted && (
         <div className="mt-4 flex justify-around items-center">
           <p>{t('calling', { name: call.name || 'Someone' })}</p>
-          <button onClick={answerCall} className="bg-green-500 text-white px-4 py-2 rounded">
+          <button 
+            onClick={() => {
+              console.log('Answer button clicked');
+              if (typeof answerCall === 'function') {
+                answerCall();
+              } else {
+                console.error('answerCall is not a function:', answerCall);
+              }
+            }} 
+            className="bg-green-500 text-white px-4 py-2 rounded"
+          >
             {t('answer')}
           </button>
         </div>
