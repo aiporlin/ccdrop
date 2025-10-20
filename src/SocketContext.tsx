@@ -87,73 +87,123 @@ const ContextProvider = ({ children }: SocketProviderProps) => {
   // 添加meRef以同步跟踪me状态
   const meRef = useRef<string>('initial-placeholder');
   
-  // WebSocket连接函数
+  // WebSocket连接函数 - 增强版
   const connectWebSocket = (url: string) => {
     // 确保只在客户端执行
     if (typeof window === 'undefined' || !window.WebSocket) {
-      console.log('WebSocket not available in this environment');
+      console.error('WebSocket not available in this environment');
       return;
     }
     
     // 关闭现有连接
-    if (wsRef.current && wsRef.current.readyState === window.WebSocket.OPEN) {
-      wsRef.current.close();
-      console.log('Closed existing WebSocket connection');
+    if (wsRef.current) {
+      const readyState = wsRef.current.readyState;
+      if (readyState === window.WebSocket.OPEN || readyState === window.WebSocket.CONNECTING) {
+        wsRef.current.close();
+        console.log('Closed existing WebSocket connection');
+      }
     }
 
-    // 创建新的WebSocket连接
-    const wsUrl = url.replace(/^http/, 'ws');
+    // 创建新的WebSocket连接 - 正确处理URL转换
+    let wsUrl = url;
+    if (wsUrl.startsWith('http://')) {
+      wsUrl = wsUrl.replace('http://', 'ws://');
+    } else if (wsUrl.startsWith('https://')) {
+      wsUrl = wsUrl.replace('https://', 'wss://');
+    }
+    
     console.log('Attempting to connect to WebSocket server:', wsUrl);
-    wsRef.current = new window.WebSocket(wsUrl);
+    
+    try {
+      wsRef.current = new window.WebSocket(wsUrl);
 
-    // 连接打开
-    wsRef.current.onopen = () => {
-      console.log('✅ WebSocket connected successfully');
-    };
-
-    // 接收消息
-    wsRef.current.onmessage = (event) => {
-      try {
-        const data = JSON.parse(event.data);
-        console.log('Received WebSocket message:', data);
-        if (data.type && messageHandlersRef.current[data.type]) {
-          messageHandlersRef.current[data.type].forEach(handler => handler(data));
+      // 连接打开
+      wsRef.current.onopen = () => {
+        console.log('✅ WebSocket connected successfully');
+        // 连接成功后立即注册短ID
+        if (me !== 'initial-placeholder' && me) {
+          sendMessage('registerShortId', { shortId: me });
+          console.log('Registered short ID:', me);
         }
-      } catch (error) {
-        console.error('Error parsing WebSocket message:', error);
-      }
-    };
+      };
 
-    // 连接错误
-    wsRef.current.onerror = (error) => {
-      console.error('❌ WebSocket connection error:', error);
-    };
+      // 接收消息
+      wsRef.current.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          console.log('Received WebSocket message:', data);
+          if (data.type && messageHandlersRef.current[data.type]) {
+            messageHandlersRef.current[data.type].forEach(handler => handler(data));
+          }
+        } catch (error) {
+          console.error('Error parsing WebSocket message:', error);
+        }
+      };
 
-    // 连接关闭
-    wsRef.current.onclose = (event) => {
-      console.log('WebSocket disconnected. Code:', event.code, 'Reason:', event.reason);
-      // 尝试重连
-      setTimeout(() => {
-        console.log('Attempting to reconnect...');
-        connectWebSocket(url);
-      }, 3000);
-    };
+      // 连接错误
+      wsRef.current.onerror = (error) => {
+        console.error('❌ WebSocket connection error:', error);
+        alert('Failed to connect to signaling server. Please check if the server is running.');
+      };
+
+      // 连接关闭
+      wsRef.current.onclose = (event) => {
+        console.log('WebSocket disconnected. Code:', event.code, 'Reason:', event.reason);
+        // 尝试重连
+        setTimeout(() => {
+          console.log('Attempting to reconnect...');
+          connectWebSocket(url);
+        }, 3000);
+      };
+    } catch (error) {
+      console.error('Failed to create WebSocket instance:', error);
+      alert('Cannot connect to signaling server. Please check if the server is running.');
+    }
   };
 
-  // 发送消息函数
+  // 发送消息函数 - 增强版
   const sendMessage = (event: string, data: object) => {
     const message = { type: event, ...data };
     console.log('Attempting to send message:', message);
+    
+    // 确保在客户端环境
+    if (typeof window === 'undefined' || !window.WebSocket) {
+      console.error('WebSocket not available in this environment');
+      return;
+    }
+    
     if (wsRef.current) {
       console.log('WebSocket readyState:', wsRef.current.readyState);
       if (wsRef.current.readyState === WebSocket.OPEN) {
-        wsRef.current.send(JSON.stringify(message));
-        console.log('✅ Message sent successfully');
+        try {
+          wsRef.current.send(JSON.stringify(message));
+          console.log('✅ Message sent successfully');
+        } catch (error) {
+          console.error('❌ Error sending message:', error);
+        }
+      } else if (wsRef.current.readyState === WebSocket.CONNECTING) {
+        console.warn('⚠ WebSocket is still connecting. Will queue message...');
+        // 等待连接建立后再发送
+        const waitForConnect = setInterval(() => {
+          if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+            clearInterval(waitForConnect);
+            wsRef.current.send(JSON.stringify(message));
+            console.log('✅ Message sent after connection established');
+          } else if (wsRef.current && wsRef.current.readyState === WebSocket.CLOSED) {
+            clearInterval(waitForConnect);
+            console.error('❌ WebSocket connection closed while waiting');
+          }
+        }, 100);
       } else {
         console.error('❌ WebSocket not connected. Ready state:', wsRef.current.readyState);
+        // 尝试重新连接
+        console.log('Attempting to reconnect WebSocket...');
+        connectWebSocket(SOCKET_SERVER_URL);
       }
     } else {
       console.error('❌ WebSocket connection not initialized');
+      // 尝试初始化连接
+      connectWebSocket(SOCKET_SERVER_URL);
     }
   };
 
@@ -295,8 +345,9 @@ const ContextProvider = ({ children }: SocketProviderProps) => {
     const peer = new Peer({ initiator: false, trickle: false });
 
     peer.on('signal', (data: SignalData) => {
-      sendMessage('answercall', { signal: data, to: call.from });
-    });
+        console.log('Peer signaling data for answer:', data);
+        sendMessage('answercall', { signal: data, to: call.from });
+      });
 
     peer.on('stream', (currentStream) => {
       if (userVideo.current) {
@@ -309,8 +360,17 @@ const ContextProvider = ({ children }: SocketProviderProps) => {
     });
 
     if (call.signal) {
-      // 使用string类型更安全
-      peer.signal(JSON.stringify(call.signal));
+      // 确保正确处理signal数据，使用JSON.stringify转换
+      try {
+        if (call.signal) {
+          // 总是将signal数据转换为字符串，这是最安全的方式
+          const signalString = JSON.stringify(call.signal);
+          peer.signal(signalString);
+          console.log('Call signal applied successfully');
+        }
+      } catch (error) {
+        console.error('Error applying call signal:', error);
+      }
     }
 
     connectionRef.current = peer;
@@ -351,12 +411,28 @@ const ContextProvider = ({ children }: SocketProviderProps) => {
         return;
       }
       
-      // 简化Peer配置，移除可能导致问题的选项
-      const peer = new Peer({ initiator: true, trickle: false });
+      // 创建Peer实例，添加更好的错误处理
+      const peer = new Peer({
+        initiator: true,
+        trickle: false,
+        // 添加配置以提高兼容性
+        config: {
+          iceServers: [
+            { urls: 'stun:stun.l.google.com:19302' },
+            { urls: 'stun:stun1.l.google.com:19302' }
+          ]
+        }
+      });
 
       peer.on('signal', (data: SignalData) => {
         console.log('Peer signaling data generated, sending call request...');
-        sendMessage('calluser', { userToCall: id, signalData: data, from: currentId, name });
+        // 确保发送正确的格式给服务器
+        sendMessage('calluser', { 
+          userToCall: id, 
+          signalData: data, 
+          from: currentId, 
+          name: name || 'User'
+        });
       });
 
       peer.on('stream', (currentStream) => {
@@ -379,8 +455,15 @@ const ContextProvider = ({ children }: SocketProviderProps) => {
       const unsubscribeCallAccepted = onMessage('callaccepted', (data: { signal: SignalData }) => {
         console.log('Call accepted signal received');
         setCallAccepted(true);
-        // 使用string类型更安全
-        peer.signal(JSON.stringify(data.signal));
+        // 确保正确处理signal数据，使用JSON.stringify转换
+          try {
+            // 总是将signal数据转换为字符串，这是最安全的方式
+            const signalString = JSON.stringify(data.signal);
+            peer.signal(signalString);
+            console.log('Signal applied successfully');
+          } catch (error) {
+            console.error('Error applying signal:', error);
+          }
         // 只监听一次
         unsubscribeCallAccepted();
       });
