@@ -47,6 +47,12 @@ Cloudflare Pages将自动构建并部署您的应用。部署完成后，您将�
 
 3. **WebSocket连接限制**：免费计划中的WebSocket连接数量有一定限制。
 
+4. **服务器端预渲染注意事项**：
+   - WebSocket连接必须在客户端环境中初始化，不能在服务器端执行
+   - 确保使用`typeof window !== 'undefined'`检查来避免在服务器端预渲染时执行客户端代码
+   - WebSocket连接初始化应该放在React组件的`useEffect`钩子中
+   - 避免在组件外部直接初始化WebSocket连接，这会导致Next.js预渲染错误
+
 ### 故障排除
 
 如果遇到部署问题：

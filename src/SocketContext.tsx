@@ -141,10 +141,14 @@ const connectWebSocket = (url: string) => {
   };
 };
 
-// 初始化WebSocket连接
-connectWebSocket(SOCKET_SERVER_URL);
-
 const ContextProvider = ({ children }: SocketProviderProps) => {
+  // 初始化WebSocket连接 - 移到组件内部以避免服务器端预渲染错误
+  useEffect(() => {
+    // 只在客户端执行WebSocket连接
+    if (typeof window !== 'undefined' && window.WebSocket) {
+      connectWebSocket(SOCKET_SERVER_URL);
+    }
+  }, []);
   const [stream] = useState<MediaStream | null>(null);
   const [me, setMe] = useState('');
   const [call, setCall] = useState<CallData>({});
