@@ -1,0 +1,2 @@
+# 排除Cloudflare Workers后端代码
+src/workers/
