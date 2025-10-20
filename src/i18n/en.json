@@ -24,5 +24,16 @@
   "decrypt": "Decrypt",
   "decryptionFailed": "Decryption failed. Check the password.",
   "fileEncrypted": "This file is encrypted. Please enter a password.",
-  "fileDecryptionWarning": "Decryption of files is complex and this is a simplified example. The downloaded file might still be encrypted."
+  "fileDecryptionWarning": "Decryption of files is complex and this is a simplified example. The downloaded file might still be encrypted.",
+  "roomManagement": "Room Management",
+  "createRoom": "Create Room",
+  "generateEncryptionKey": "Generate Encryption Key",
+  "createNewRoom": "Create New Room",
+  "joinRoom": "Join Room",
+  "enterRoomId": "Enter Room ID",
+  "enterEncryptionKeyOptional": "Enter Encryption Key (optional)",
+  "joinExistingRoom": "Join Existing Room",
+  "yourRoomId": "Your Room ID",
+  "yourEncryptionKey": "Your Encryption Key",
+  "shareRoomIdWithOthers": "Share this Room ID with others to connect"
 }

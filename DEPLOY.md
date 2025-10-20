@@ -7,6 +7,11 @@
 ### 前置条件
 - Cloudflare账号
 - GitHub/GitLab/Bitbucket账号（用于代码托管）
+- 确保本地可以成功构建项目：
+  ```bash
+  npm install
+  npm run build
+  ```
 
 ### 步骤
 
@@ -17,20 +22,9 @@
 - `next.config.ts` 已配置为导出静态页面
 - `.env.example` 文件包含必要的环境变量说明
 
-#### 1.2 构建项目
+#### 1.2 部署到Cloudflare Pages
 
-在本地运行构建命令，确保项目可以正常构建：
-
-```bash
-npm install
-npm run build
-```
-
-这将在 `out` 目录生成静态文件。
-
-#### 1.3 部署到Cloudflare Pages
-
-1. 登录到 [Cloudflare Dashboard](https://dash.cloudflare.com/)
+1. 登录到 [Cloudflare Pages 仪表板](https://dash.cloudflare.com/?to=/:account/pages)
 2. 点击左侧菜单的 "Pages" 选项
 3. 点击 "Create a project" 按钮
 4. 选择您的代码仓库（GitHub/GitLab/Bitbucket）
@@ -40,10 +34,28 @@ npm run build
    - Build command: `npm run build`
    - Build output directory: `out`
    - Environment variables:
-     - 添加 `NEXT_PUBLIC_SOCKET_SERVER_URL` 指向您的信令服务器地址
+     - 添加 `NEXT_PUBLIC_SOCKET_SERVER_URL` 指向您的信令服务器地址 (格式: https://your-worker.your-account.workers.dev)
 7. 点击 "Save and Deploy" 按钮
 
 Cloudflare Pages将自动构建并部署您的应用。部署完成后，您将获得一个 `.pages.dev` 域名。
+
+### 重要注意事项
+
+1. **免费计划可用性**：Cloudflare提供免费的Pages和Workers计划，通常足够个人项目和小型应用使用。
+
+2. **部署前构建验证**：在部署到Cloudflare Pages之前，**必须**在本地成功运行`npm run build`命令，确保没有编译错误。
+
+3. **WebSocket连接限制**：免费计划中的WebSocket连接数量有一定限制。
+
+### 故障排除
+
+如果遇到部署问题：
+
+1. **构建错误**：检查是否有TypeScript编译错误或缺失的模块。
+
+2. **连接问题**：验证`NEXT_PUBLIC_SOCKET_SERVER_URL`环境变量是否正确设置，确保Worker URL可访问。
+
+3. **查看构建日志**：Cloudflare Pages提供详细的构建日志，检查日志以获取具体的错误信息。
 
 ## 2. 后端部署（Cloudflare Workers）
 

@@ -24,5 +24,16 @@
   "decrypt": "解密",
   "decryptionFailed": "解密失败，请检查密码。",
   "fileEncrypted": "此文件已加密，请输入密码。",
-  "fileDecryptionWarning": "文件解密很复杂，这只是一个简化的例子。下载的文件可能仍然是加密的。"
+  "fileDecryptionWarning": "文件解密很复杂，这只是一个简化的例子。下载的文件可能仍然是加密的。",
+  "roomManagement": "房间管理",
+  "createRoom": "创建房间",
+  "generateEncryptionKey": "生成加密密钥",
+  "createNewRoom": "创建新房间",
+  "joinRoom": "加入房间",
+  "enterRoomId": "输入房间 ID",
+  "enterEncryptionKeyOptional": "输入加密密钥 (可选)",
+  "joinExistingRoom": "加入现有房间",
+  "yourRoomId": "你的房间 ID",
+  "yourEncryptionKey": "你的加密密钥",
+  "shareRoomIdWithOthers": "与他人分享此房间 ID 以建立连接"
 }
