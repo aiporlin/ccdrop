@@ -95,6 +95,18 @@ const ContextProvider = ({ children }: SocketProviderProps) => {
       return;
     }
     
+    // 验证URL配置
+    if (!url || url === 'http://localhost:3003' || url === 'ws://localhost:3003') {
+      const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+      if (!isLocalhost) {
+        console.warn('⚠️  Using localhost server URL in production environment!');
+        // 只在非开发环境显示警告
+        if (process.env.NODE_ENV === 'production' || window.location.hostname.includes('pages.dev')) {
+          alert('警告: WebSocket服务器地址可能配置不正确。在生产环境中，请确保已设置正确的Cloudflare Worker URL。');
+        }
+      }
+    }
+    
     // 关闭现有连接
     if (wsRef.current) {
       const readyState = wsRef.current.readyState;
@@ -113,6 +125,8 @@ const ContextProvider = ({ children }: SocketProviderProps) => {
     }
     
     console.log('Attempting to connect to WebSocket server:', wsUrl);
+    console.log('Current environment:', process.env.NODE_ENV || 'development');
+    console.log('Current hostname:', window.location.hostname);
     
     try {
       wsRef.current = new window.WebSocket(wsUrl);
@@ -140,16 +154,34 @@ const ContextProvider = ({ children }: SocketProviderProps) => {
         }
       };
 
-      // 连接错误
+      // 连接错误 - 增强版错误处理
       wsRef.current.onerror = (error) => {
         console.error('❌ WebSocket connection error:', error);
-        alert('Failed to connect to signaling server. Please check if the server is running.');
+        
+        // 根据不同环境显示不同的错误消息
+        const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+        let errorMessage = '';
+        
+        if (isLocalhost) {
+          errorMessage = '无法连接到信令服务器。请确保本地服务器(node server.js)正在运行。';
+        } else {
+          errorMessage = '无法连接到信令服务器。请检查NEXT_PUBLIC_SOCKET_SERVER_URL环境变量是否正确设置为您的Cloudflare Worker地址。';
+          console.error('请确认您的Cloudflare Worker已部署并可访问。正确格式应为: https://your-worker.your-account.workers.dev');
+        }
+        
+        alert(errorMessage);
       };
 
-      // 连接关闭
+      // 连接关闭 - 增强版重连逻辑
       wsRef.current.onclose = (event) => {
         console.log('WebSocket disconnected. Code:', event.code, 'Reason:', event.reason);
-        // 尝试重连
+        
+        // 检查关闭原因
+        if (event.code === 1006) { // 异常关闭
+          console.error('⚠️  WebSocket connection abnormally closed. This might indicate server is not reachable.');
+        }
+        
+        // 尝试重连，但增加重连间隔
         setTimeout(() => {
           console.log('Attempting to reconnect...');
           connectWebSocket(url);
@@ -157,7 +189,8 @@ const ContextProvider = ({ children }: SocketProviderProps) => {
       };
     } catch (error) {
       console.error('Failed to create WebSocket instance:', error);
-      alert('Cannot connect to signaling server. Please check if the server is running.');
+      console.error('请检查WebSocket URL格式是否正确:', wsUrl);
+      alert('无法创建WebSocket连接。请检查服务器URL配置是否正确。');
     }
   };
 

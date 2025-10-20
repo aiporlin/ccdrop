@@ -17,3 +17,10 @@ zone_name = "your-domain.com"
 
 # 发布环境配置
 [env.production]
+
+#日志启用
+[observability]
+[observability.logs]
+enabled = true
+head_sampling_rate = 1
+invocation_logs = true
