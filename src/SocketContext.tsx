@@ -379,7 +379,14 @@ const ContextProvider = ({ children }: SocketProviderProps) => {
 
     peer.on('signal', (data: SignalData) => {
         console.log('Peer signaling data for answer:', data);
-        sendMessage('answercall', { signal: data, to: call.from });
+        try {
+          // 确保信号数据格式一致并可序列化
+          const serializedSignal = typeof data === 'string' ? JSON.parse(data) : data;
+          sendMessage('answercall', { signal: serializedSignal, to: call.from });
+          console.log('Answer signal sent successfully');
+        } catch (error) {
+          console.error('Error sending answer signal:', error);
+        }
       });
 
     peer.on('stream', (currentStream) => {
@@ -459,13 +466,20 @@ const ContextProvider = ({ children }: SocketProviderProps) => {
 
       peer.on('signal', (data: SignalData) => {
         console.log('Peer signaling data generated, sending call request...');
-        // 确保发送正确的格式给服务器
-        sendMessage('calluser', { 
-          userToCall: id, 
-          signalData: data, 
-          from: currentId, 
-          name: name || 'User'
-        });
+        try {
+          // 确保信号数据格式一致并可序列化
+          const serializedSignal = typeof data === 'string' ? JSON.parse(data) : data;
+          // 确保发送正确的格式给服务器，使用signal而不是signalData
+          sendMessage('calluser', { 
+            userToCall: id, 
+            signalData: serializedSignal, 
+            from: currentId, 
+            name: name || 'User'
+          });
+          console.log('Call request sent successfully');
+        } catch (error) {
+          console.error('Error preparing signal data:', error);
+        }
       });
 
       peer.on('stream', (currentStream) => {

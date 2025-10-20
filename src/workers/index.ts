@@ -112,19 +112,40 @@ function registerShortId(ws: WebSocket, shortId: string): void {
 // 处理呼叫用户消息
 function handleCallUser(message: CallUserMessage): void {
   const { userToCall, signalData, from, name } = message;
+  console.log(`Received call request from ${from} to ${userToCall}`);
+  
+  // 验证信号数据格式
+  const isValidSignal = signalData && (signalData.sdp || signalData.candidate);
+  console.log('Signal data valid:', isValidSignal);
+  
   const targetWs = connections.get(userToCall);
   
   if (targetWs) {
     console.log(`Calling user: ${userToCall} from ${from}`);
-    // 发送呼叫消息给目标用户
-    targetWs.send(JSON.stringify({
-      type: 'calluser',
-      signal: signalData,
-      from,
-      name
-    }));
+    try {
+      // 发送呼叫消息给目标用户，确保信号数据格式正确
+      const callMessage = JSON.stringify({
+        type: 'calluser',
+        signal: signalData, // 保持与前端期望的字段名一致
+        from,
+        name
+      });
+      console.log('Sending call message:', callMessage.length, 'bytes');
+      targetWs.send(callMessage);
+      console.log('Call message sent successfully');
+    } catch (error) {
+      console.error('Error sending call message:', error);
+      // 通知呼叫方发送失败
+      const callerWs = connections.get(from);
+      if (callerWs) {
+        callerWs.send(JSON.stringify({
+          type: 'error',
+          message: 'Failed to send call request'
+        }));
+      }
+    }
   } else {
-    console.log(`User ${userToCall} not found`);
+    console.log(`User ${userToCall} not found in connections map`);
     // 如果目标用户不存在，可以发送错误消息给呼叫方
     const callerWs = connections.get(from);
     if (callerWs) {
@@ -139,15 +160,30 @@ function handleCallUser(message: CallUserMessage): void {
 // 处理接听呼叫消息
 function handleAnswerCall(message: AnswerCallMessage): void {
   const { signal, to } = message;
+  console.log(`Received answer call for: ${to}`);
+  
+  // 验证信号数据格式
+  const isValidSignal = signal && (signal.sdp || signal.candidate);
+  console.log('Answer signal data valid:', isValidSignal);
+  
   const targetWs = connections.get(to);
   
   if (targetWs) {
     console.log(`Answering call to: ${to}`);
-    // 发送接受呼叫消息给发起方
-    targetWs.send(JSON.stringify({
-      type: 'callaccepted',
-      signal
-    }));
+    try {
+      // 发送接受呼叫消息给发起方，确保信号数据格式正确
+      const answerMessage = JSON.stringify({
+        type: 'callaccepted',
+        signal // 保持与前端期望的字段名一致
+      });
+      console.log('Sending answer message:', answerMessage.length, 'bytes');
+      targetWs.send(answerMessage);
+      console.log('Answer message sent successfully');
+    } catch (error) {
+      console.error('Error sending answer message:', error);
+    }
+  } else {
+    console.log(`Caller ${to} not found, cannot send answer`);
   }
 }
 
