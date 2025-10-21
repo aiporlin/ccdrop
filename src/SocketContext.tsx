@@ -1,3 +1,4 @@
+'use client';
 import * as React from 'react';
 import { createContext, useRef, useState, useEffect, useCallback, ReactNode } from 'react';
 // @ts-ignore - 忽略simple-peer的类型检查
