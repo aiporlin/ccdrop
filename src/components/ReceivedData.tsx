@@ -6,7 +6,12 @@ import * as CryptoJS from 'crypto-js';
 import { useI18n } from '@/i18n/I18nProvider';
 
 const ReceivedData = () => {
-  const { receivedFiles, receivedTexts } = useContext(SocketContext);
+  const socketContext = useContext(SocketContext);
+  // 确保socketContext存在
+  if (!socketContext) {
+    return <div>Socket Context not available</div>;
+  }
+  const { receivedFiles, receivedTexts } = socketContext;
   const [password, setPassword] = useState('');
   const [decryptedTexts, setDecryptedTexts] = useState<{ [key: number]: string }>({});
   const { t } = useI18n();

@@ -10,6 +10,11 @@ const ConnectionManager = () => {
   // 添加调试日志，确认上下文是否正确获取
   console.log('ConnectionManager - SocketContext:', socketContext);
   
+  // 确保socketContext存在
+  if (!socketContext) {
+    return <div>Socket Context not available</div>;
+  }
+  
   const { me, call, callAccepted, callEnded, name, setName, leaveCall, callUser, answerCall } = socketContext;
   const [idToCall, setIdToCall] = useState('');
   const { t } = useI18n();
@@ -53,7 +58,7 @@ const ConnectionManager = () => {
           </button>
         )}
       </div>
-      {call.isReceivingCall && !callAccepted && (
+      {call.from && !callAccepted && (
         <div className="mt-4 flex justify-around items-center">
           <p>{t('calling', { name: call.name || 'Someone' })}</p>
           <button 
