@@ -5,7 +5,7 @@ import ConnectionManager from "./ConnectionManager";
 import FileUpload from "./FileUpload";
 import ReceivedData from "./ReceivedData";
 import TextShare from "./TextShare";
-import { useI18n } from "../i18n/I18nProvider";
+import { useI18n } from "@/i18n/I18nProvider";
 
 interface HomeContentProps {
   lang: string;

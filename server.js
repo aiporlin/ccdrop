@@ -112,9 +112,10 @@ wss.on('connection', (ws) => {
   });
 });
 
-// 启动服务器
-server.listen(PORT, () => {
+// 启动服务器 - 监听0.0.0.0以接受局域网内所有设备的连接
+server.listen(PORT, '0.0.0.0', () => {
   console.log(`Signaling server listening on port ${PORT}`);
+  console.log(`Server is accessible from local network on any device`);
 });
 
 // 处理CORS预检请求

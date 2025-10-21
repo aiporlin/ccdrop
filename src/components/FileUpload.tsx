@@ -6,12 +6,7 @@ import * as CryptoJS from 'crypto-js';
 import { useI18n } from '@/i18n/I18nProvider';
 
 const FileUpload = () => {
-  const socketContext = useContext(SocketContext);
-  // 确保socketContext存在
-  if (!socketContext) {
-    return <div>Socket Context not available</div>;
-  }
-  const { sendData, callAccepted } = socketContext;
+  const { sendData, callAccepted } = useContext(SocketContext);
   const [files, setFiles] = useState<FileList | null>(null);
   const [password, setPassword] = useState('');
   const { t } = useI18n();

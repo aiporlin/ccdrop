@@ -88,146 +88,66 @@ function handleMessage(ws: WebSocket, message: WebSocketMessage): void {
 
 // 注册短ID
 function registerShortId(ws: WebSocket, shortId: string): void {
-  try {
-    // 验证短ID格式
-    if (!shortId || typeof shortId !== 'string' || shortId.length === 0) {
-      console.error('Invalid short ID provided:', shortId);
-      return;
+  console.log(`Registering short ID: ${shortId}`);
+  
+  // 如果该短ID已被其他连接使用，先清理旧连接
+  const existingWs = connections.get(shortId);
+  if (existingWs && existingWs !== ws) {
+    const oldShortId = reverseMap.get(existingWs);
+    if (oldShortId) {
+      reverseMap.delete(existingWs);
     }
-    
-    console.log(`Registering short ID: ${shortId}`);
-    
-    // 如果该短ID已被其他连接使用，先清理旧连接
-    const existingWs = connections.get(shortId);
-    if (existingWs && existingWs !== ws) {
-      const oldShortId = reverseMap.get(existingWs);
-      if (oldShortId) {
-        reverseMap.delete(existingWs);
-      }
-      try {
-        existingWs.close();
-        console.log(`Closed existing connection for short ID: ${shortId}`);
-      } catch (e) {
-        console.error('Error closing old connection:', e);
-      }
-    }
-
-    // 更新映射
-    connections.set(shortId, ws);
-    reverseMap.set(ws, shortId);
-    console.log(`Successfully registered short ID: ${shortId}`);
-    
-    // 发送注册成功的确认消息
     try {
-      ws.send(JSON.stringify({
-        type: 'registerSuccess',
-        shortId: shortId
-      }));
-    } catch (sendError) {
-      console.error('Error sending registration confirmation:', sendError);
+      existingWs.close();
+    } catch (e) {
+      console.error('Error closing old connection:', e);
     }
-  } catch (error) {
-    console.error('Error in registerShortId:', error);
   }
+
+  // 更新映射
+  connections.set(shortId, ws);
+  reverseMap.set(ws, shortId);
 }
 
 // 处理呼叫用户消息
 function handleCallUser(message: CallUserMessage): void {
-  try {
-    const { userToCall, signalData, from, name } = message;
-    
-    // 验证必要参数
-    if (!userToCall || !from) {
-      console.error('Missing required parameters in call message:', { userToCall, from });
-      return;
+  const { userToCall, signalData, from, name } = message;
+  const targetWs = connections.get(userToCall);
+  
+  if (targetWs) {
+    console.log(`Calling user: ${userToCall} from ${from}`);
+    // 发送呼叫消息给目标用户
+    targetWs.send(JSON.stringify({
+      type: 'calluser',
+      signal: signalData,
+      from,
+      name
+    }));
+  } else {
+    console.log(`User ${userToCall} not found`);
+    // 如果目标用户不存在，可以发送错误消息给呼叫方
+    const callerWs = connections.get(from);
+    if (callerWs) {
+      callerWs.send(JSON.stringify({
+        type: 'error',
+        message: 'User not found'
+      }));
     }
-    
-    console.log(`Received call request from ${from} to ${userToCall}`);
-    
-    // 验证信号数据格式
-    const isValidSignal = signalData && (signalData.sdp || signalData.candidate);
-    console.log('Signal data valid:', isValidSignal);
-    
-    // 获取目标用户的WebSocket连接
-    const targetWs = connections.get(userToCall);
-    
-    if (targetWs) {
-      console.log(`Calling user: ${userToCall} from ${from}`);
-      try {
-        // 发送呼叫消息给目标用户，确保信号数据格式正确
-        const callMessage = JSON.stringify({
-          type: 'calluser',
-          signal: signalData, // 保持与前端期望的字段名一致
-          from,
-          name
-        });
-        console.log('Sending call message:', callMessage.length, 'bytes');
-        targetWs.send(callMessage);
-        console.log('Call message sent successfully');
-        
-        // 发送确认消息给呼叫方
-        const callerWs = connections.get(from);
-        if (callerWs) {
-          callerWs.send(JSON.stringify({
-            type: 'callSent',
-            to: userToCall,
-            status: 'success'
-          }));
-        }
-      } catch (error) {
-        console.error('Error sending call message:', error);
-        // 通知呼叫方发送失败
-        const callerWs = connections.get(from);
-        if (callerWs) {
-          callerWs.send(JSON.stringify({
-            type: 'error',
-            message: 'Failed to send call request'
-          }));
-        }
-      }
-    } else {
-      console.log(`User ${userToCall} not found in connections map`);
-      // 如果目标用户不存在，可以发送错误消息给呼叫方
-      const callerWs = connections.get(from);
-      if (callerWs) {
-        callerWs.send(JSON.stringify({
-          type: 'error',
-          message: 'User not found'
-        }));
-      }
-    }
-  } catch (error) {
-    console.error('Error in handleCallUser:', error);
   }
 }
 
 // 处理接听呼叫消息
 function handleAnswerCall(message: AnswerCallMessage): void {
   const { signal, to } = message;
-  console.log(`Received answer call for: ${to}`);
-  
-  // 验证信号数据格式
-  const isValidSignal = signal && (signal.sdp || signal.candidate);
-  console.log('Answer signal data valid:', isValidSignal);
-  
   const targetWs = connections.get(to);
   
   if (targetWs) {
     console.log(`Answering call to: ${to}`);
-    try {
-      // 发送接受呼叫消息给发起方，确保信号数据格式正确
-      const answerMessage = JSON.stringify({
-        type: 'callaccepted',
-        signal // 保持与前端期望的字段名一致
-      });
-      console.log('Sending answer message:', answerMessage.length, 'bytes');
-      targetWs.send(answerMessage);
-      console.log('Answer message sent successfully');
-    } catch (error) {
-      console.error('Error sending answer message:', error);
-    }
-  } else {
-    console.log(`Caller ${to} not found, cannot send answer`);
+    // 发送接受呼叫消息给发起方
+    targetWs.send(JSON.stringify({
+      type: 'callaccepted',
+      signal
+    }));
   }
 }
 
@@ -247,70 +167,50 @@ function broadcastCallEnded(excludeId: string): void {
 // Workers入口函数
 export default {
   async fetch(request: Request, env: any, ctx: ExecutionContext): Promise<Response> {
-    try {
-      // 处理CORS预检请求
-      if (request.method === 'OPTIONS') {
-        return new Response(null, {
-          headers: {
-            'Access-Control-Allow-Origin': '*',
-            'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-            'Access-Control-Allow-Headers': 'Content-Type, Upgrade, Connection'
-          }
-        });
-      }
-
-      // 处理WebSocket连接
-      if (request.headers.get('Upgrade') === 'websocket') {
-        try {
-          // @ts-ignore - Cloudflare环境中的WebSocket处理
-          const webSocketPair = new WebSocketPair();
-          const [client, server] = Object.values(webSocketPair);
-
-          // 为server对象添加类型断言
-          const serverWs = server as any;
-
-          // 接受WebSocket连接
-          serverWs.accept();
-          console.log('WebSocket connection accepted');
-
-          // 处理WebSocket连接
-          handleWebSocket(serverWs);
-
-          // WebSocket连接被接受后会自动保持活动状态
-
-          // 返回WebSocket响应
-          return new Response(null, {
-            status: 101,
-            // @ts-ignore - Cloudflare环境中的WebSocket处理
-            webSocket: client
-          });
-        } catch (wsError) {
-          console.error('WebSocket connection error:', wsError);
-          return new Response('WebSocket connection failed', {
-            status: 500,
-            headers: {
-              'Access-Control-Allow-Origin': '*'
-            }
-          });
-        }
-      }
-
-      // 处理普通HTTP请求
-      return new Response('CCDrop Signaling Server is running without Durable Objects', {
-        status: 200,
+    // 处理CORS预检请求
+    if (request.method === 'OPTIONS') {
+      return new Response(null, {
         headers: {
-          'Content-Type': 'text/plain',
-          'Access-Control-Allow-Origin': '*'
-        }
-      });
-    } catch (error) {
-      console.error('Unexpected server error:', error);
-      return new Response('Internal server error', {
-        status: 500,
-        headers: {
-          'Access-Control-Allow-Origin': '*'
+          'Access-Control-Allow-Origin': '*',
+          'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+          'Access-Control-Allow-Headers': 'Content-Type, Upgrade, Connection'
         }
       });
     }
+
+    // 处理WebSocket连接
+    if (request.headers.get('Upgrade') === 'websocket') {
+      // @ts-ignore - Cloudflare环境中的WebSocket处理
+      const webSocketPair = new WebSocketPair();
+      const [client, server] = Object.values(webSocketPair);
+
+      // 为server对象添加类型断言
+      const serverWs = server as any;
+
+      // 接受WebSocket连接
+      serverWs.accept();
+
+      // 处理WebSocket连接
+      handleWebSocket(serverWs);
+
+      // 使WebSocket连接在请求处理完成后保持活跃
+      ctx.waitUntil(new Promise(() => {})); // 这会使Worker保持运行直到WebSocket连接关闭
+
+      // 返回WebSocket响应
+      return new Response(null, {
+        status: 101,
+        // @ts-ignore - Cloudflare环境中的WebSocket处理
+        webSocket: client
+      });
+    }
+
+    // 处理普通HTTP请求
+    return new Response('CCDrop Signaling Server is running without Durable Objects', {
+      status: 200,
+      headers: {
+        'Content-Type': 'text/plain',
+        'Access-Control-Allow-Origin': '*'
+      }
+    });
   }
 };

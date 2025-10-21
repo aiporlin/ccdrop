@@ -1,25 +1,20 @@
 'use client';
 
 import React, { useContext, useState } from 'react';
-import { SocketContext } from '../SocketContext';
+import { SocketContext, ReceivedText } from '../SocketContext';
 import * as CryptoJS from 'crypto-js';
 import { useI18n } from '@/i18n/I18nProvider';
 
 const ReceivedData = () => {
-  const socketContext = useContext(SocketContext);
-  // 确保socketContext存在
-  if (!socketContext) {
-    return <div>Socket Context not available</div>;
-  }
-  const { receivedFiles, receivedTexts } = socketContext;
+  const { receivedFiles, receivedTexts } = useContext(SocketContext);
   const [password, setPassword] = useState('');
   const [decryptedTexts, setDecryptedTexts] = useState<{ [key: number]: string }>({});
   const { t } = useI18n();
 
-  const handleDecryptText = (text: string, index: number) => {
-    if (password) {
+  const handleDecryptText = (textData: ReceivedText, index: number) => {
+    if (password && textData.encrypted) {
       try {
-        const bytes = CryptoJS.AES.decrypt(text, password);
+        const bytes = CryptoJS.AES.decrypt(textData.content, password);
         const originalText = bytes.toString(CryptoJS.enc.Utf8);
         if (originalText) {
           setDecryptedTexts(prev => ({ ...prev, [index]: originalText }));
@@ -92,11 +87,14 @@ const ReceivedData = () => {
         <h3 className="font-semibold">{t('texts')}</h3>
         {receivedTexts.length === 0 && <p>{t('noTexts')}</p>}
         <ul>
-          {receivedTexts.map((text: string, index: number) => (
+          {receivedTexts.map((textData: ReceivedText, index: number) => (
             <li key={index} className="p-2 border-b">
-              <p className="truncate">{decryptedTexts[index] || text}</p>
-              {!decryptedTexts[index] && (
-                <button onClick={() => handleDecryptText(text, index)} className="text-sm text-blue-500">{t('decrypt')}</button>
+              <p className="truncate">{decryptedTexts[index] || textData.content}</p>
+              {!decryptedTexts[index] && textData.encrypted && (
+                <button onClick={() => handleDecryptText(textData, index)} className="text-sm text-blue-500">{t('decrypt')}</button>
+              )}
+              {textData.encrypted && !decryptedTexts[index] && (
+                <span className="ml-2 text-xs text-gray-500">[Encrypted]</span>
               )}
             </li>
           ))}

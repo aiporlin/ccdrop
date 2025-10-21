@@ -22,8 +22,6 @@
 - `next.config.ts` 已配置为导出静态页面
 - `.env.example` 文件包含必要的环境变量说明
 
-### 步骤
-
 #### 1.2 部署到Cloudflare Pages
 
 1. 登录到 [Cloudflare Pages 仪表板](https://dash.cloudflare.com/?to=/:account/pages)
@@ -33,15 +31,13 @@
 5. 按照提示授权Cloudflare访问您的仓库
 6. 配置构建设置：
    - Framework preset: `Next.js`
-   - Build command: `npm run build && npm run export`
+   - Build command: `npm run build`
    - Build output directory: `out`
    - Environment variables:
      - 添加 `NEXT_PUBLIC_SOCKET_SERVER_URL` 指向您的信令服务器地址 (格式: https://your-worker.your-account.workers.dev)
 7. 点击 "Save and Deploy" 按钮
 
 Cloudflare Pages将自动构建并部署您的应用。部署完成后，您将获得一个 `.pages.dev` 域名。
-
-**注意**：前端项目在构建时会将环境变量嵌入到代码中，因此每次修改环境变量后需要重新部署项目以使其生效。
 
 ### 服务器端预渲染注意事项
 
@@ -133,50 +129,13 @@ NEXT_PUBLIC_SOCKET_SERVER_URL=https://ccdrop-signaling-server.your-username.work
 
 ## 3. 配置环境变量
 
-### 环境变量配置
-
-### 重要说明
-
-前端需要正确配置 WebSocket 信令服务器地址。由于安全限制，在 Cloudflare Pages 生产环境中，必须通过 HTTPS/WSS 协议连接，且地址格式必须正确。
-
-### 环境变量配置详情
-
-#### 前端环境变量（NEXT_PUBLIC_前缀）
-- `NEXT_PUBLIC_SOCKET_SERVER_URL`: WebSocket信令服务器地址
-  - **本地开发**：`http://localhost:3003`（或您的本地服务器端口）
-  - **生产环境**：`https://your-worker.your-account.workers.dev`（Cloudflare Worker URL）
-  
-#### 环境变量配置要求
-- **格式要求**：必须以 `https://` 开头（生产环境），前端会自动转换为 `wss://`
-- **安全要求**：生产环境必须使用 HTTPS/WSS，HTTP/WSS 会被浏览器安全策略阻止
-- **访问权限**：确保 Worker 已正确配置 CORS，允许前端域名访问
+部署完成后，确保在Cloudflare Pages项目设置中更新 `NEXT_PUBLIC_SOCKET_SERVER_URL` 环境变量，指向您部署的信令服务器地址。
 
 ## 4. 测试部署
 
-部署完成后，按照以下步骤测试应用功能：
-
 1. 访问您的Cloudflare Pages网站（例如 `your-project.pages.dev`）
-2. 检查应用是否正常加载
-3. **WebSocket 连接检查**：
-   - 打开浏览器开发者工具（F12）→「网络」标签→筛选「WS」
-   - 刷新页面，检查是否成功建立 WebSocket 连接
-   - 查看连接状态和错误信息
-4. 测试两个不同设备之间的连接和文件传输功能
-
-### 常见问题排查
-
-#### WebSocket 连接错误
-
-如果遇到 WebSocket 连接错误，请检查以下几点：
-
-1. 确认 Cloudflare Worker 服务正在运行
-2. **环境变量检查**：验证 `NEXT_PUBLIC_SOCKET_SERVER_URL` 环境变量是否正确设置
-   - 确保格式为 `https://your-worker.your-account.workers.dev`
-   - 确认变量名称完全一致，区分大小写
-   - 验证 Worker URL 是否可访问
-3. **CORS 问题**：检查 Worker 是否已正确配置 CORS，允许前端域名访问
-4. **浏览器安全策略**：确保在 HTTPS 页面上使用 WSS（加密 WebSocket）连接
-5. 查看浏览器控制台和 Cloudflare Worker 日志获取详细错误信息
+2. 检查ID是否正确生成
+3. 测试两个不同设备之间的连接和文件传输功能
 
 ## 5. 注意事项
 

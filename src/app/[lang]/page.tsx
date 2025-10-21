@@ -7,6 +7,12 @@ const HomeContent = dynamic(
   { ssr: true, loading: () => <div>Loading...</div> }
 );
 
+interface HomeProps {
+  params: {
+    lang: string;
+  };
+}
+
 // 生成静态参数，支持静态导出
 export function generateStaticParams() {
   return [
@@ -15,14 +21,8 @@ export function generateStaticParams() {
   ];
 }
 
-// 使用正确的异步参数处理方式，符合Next.js 15要求
-export default async function Home({ params }: {
-  params: Promise<{ lang: string }>;
-}) {
-  // 正确等待params解析
-  const resolvedParams = await params;
-  const { lang } = resolvedParams;
-  
+export default async function Home({ params }: HomeProps) {
+  const { lang } = await params;
   return (
     <Suspense fallback={<div>Loading...</div>}>
       <HomeContent lang={lang} />

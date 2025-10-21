@@ -7,16 +7,13 @@ compatibility_date = "2024-01-01"
 [vars]
 # 可以在这里定义环境变量
 
+# 路由配置
+[[routes]]
+pattern = "your-subdomain.workers.dev"
+zone_name = "your-domain.com"
 
 # 开发环境配置
 [dev]
 
 # 发布环境配置
 [env.production]
-
-#日志启用
-[observability]
-[observability.logs]
-enabled = true
-head_sampling_rate = 1
-invocation_logs = true
